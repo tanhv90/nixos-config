@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+while true; do
+  # Get the battery percentage. The 'head -n 1' ensures we only get the first battery if there are multiple.
+  battery=$(upower -i "$(upower -e | grep 'BAT' | head -n 1)" | grep -E "percentage" | awk '{print $2}' | tr -d '%')
+
+  # Check if the battery variable is a valid number.
+  if [[ "$battery" =~ ^[0-9]+$ ]]; then
+    # Check if the battery percentage is less than or equal to 20.
+    if [ "$battery" -le 15 ]; then
+      hyprctl notify 0 5000 0 "🔋 Low battery: ${battery}%"
+      sleep 240
+    else
+      sleep 120
+    fi
+  else
+    # If battery status cannot be determined, wait and try again.
+    sleep 60
+  fi
+done

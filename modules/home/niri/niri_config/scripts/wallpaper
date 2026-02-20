@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+## Set Wallpaper in Niri using swww
+
+WALLPAPER_DIR="$HOME/Pictures/Wallpapers"
+CONFIG_DIR="$HOME/.config/niri"
+DEFAULT_WALLPAPER="$CONFIG_DIR/wallpapers/wallpaper.png"
+
+# Transition settings
+TRANSITION_TYPE="grow"
+TRANSITION_DURATION=1
+TRANSITION_FPS=60
+
+# Ensure swww daemon is running
+if ! pgrep -x "swww-daemon" > /dev/null; then
+    swww-daemon &
+    sleep 0.5
+fi
+
+case "$1" in
+    --set)
+        # Set specific wallpaper
+        if [[ -f "$2" ]]; then
+            swww img "$2" \
+                --transition-type "$TRANSITION_TYPE" \
+                --transition-duration "$TRANSITION_DURATION" \
+                --transition-fps "$TRANSITION_FPS"
+        else
+            echo "File not found: $2"
+            exit 1
+        fi
+        ;;
+    --random)
+        # Set random wallpaper from directory
+        if [[ -d "$WALLPAPER_DIR" ]]; then
+            RANDOM_WALL=$(find "$WALLPAPER_DIR" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.webp" \) | shuf -n 1)
+            if [[ -n "$RANDOM_WALL" ]]; then
+                swww img "$RANDOM_WALL" \
+                    --transition-type "$TRANSITION_TYPE" \
+                    --transition-duration "$TRANSITION_DURATION" \
+                    --transition-fps "$TRANSITION_FPS"
+                echo "Set wallpaper: $RANDOM_WALL"
+            else
+                echo "No wallpapers found in $WALLPAPER_DIR"
+                exit 1
+            fi
+        else
+            echo "Wallpaper directory not found: $WALLPAPER_DIR"
+            exit 1
+        fi
+        ;;
+    --select)
+        # Use rofi to select wallpaper
+        if [[ -d "$WALLPAPER_DIR" ]]; then
+            SELECTED=$(find "$WALLPAPER_DIR" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.webp" \) | rofi -dmenu -i -p "Wallpaper")
+            if [[ -n "$SELECTED" && -f "$SELECTED" ]]; then
+                swww img "$SELECTED" \
+                    --transition-type "$TRANSITION_TYPE" \
+                    --transition-duration "$TRANSITION_DURATION" \
+                    --transition-fps "$TRANSITION_FPS"
+            fi
+        else
+            echo "Wallpaper directory not found: $WALLPAPER_DIR"
+            exit 1
+        fi
+        ;;
+    --default)
+        # Set default wallpaper
+        if [[ -f "$DEFAULT_WALLPAPER" ]]; then
+            swww img "$DEFAULT_WALLPAPER" \
+                --transition-type "$TRANSITION_TYPE" \
+                --transition-duration "$TRANSITION_DURATION" \
+                --transition-fps "$TRANSITION_FPS"
+        else
+            echo "Default wallpaper not found: $DEFAULT_WALLPAPER"
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Usage: $(basename $0) [OPTION]"
+        echo ""
+        echo "Options:"
+        echo "  --set <path>    Set specific wallpaper"
+        echo "  --random        Set random wallpaper from ~/Pictures/Wallpapers"
+        echo "  --select        Select wallpaper using rofi"
+        echo "  --default       Set default wallpaper"
+        echo ""
+        # Default action: set default wallpaper
+        if [[ -f "$DEFAULT_WALLPAPER" ]]; then
+            swww img "$DEFAULT_WALLPAPER" \
+                --transition-type "$TRANSITION_TYPE" \
+                --transition-duration "$TRANSITION_DURATION" \
+                --transition-fps "$TRANSITION_FPS"
+        fi
+        ;;
+esac

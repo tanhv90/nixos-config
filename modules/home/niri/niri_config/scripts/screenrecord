@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+
+## Script to record screen with wf-recorder (in Wayland)
+
+# Config
+DIR="$HOME/.config/niri"
+iDIR="$DIR/mako/icons"
+RECORDINGS_DIR="$HOME/Videos/Recordings"
+PIDFILE="/tmp/screenrecord.pid"
+RECORDFILE="/tmp/screenrecord.file"
+
+# Get Colors for slurp
+background="$(cat "$DIR"/rofi/shared/colors.rasi | grep 'background:' | cut -d':' -f2 | tr -d ' '\;)"
+accent="$(cat "$DIR"/rofi/shared/colors.rasi | grep 'selected:' | cut -d':' -f2 | tr -d ' '\;)"
+
+# Create recordings directory if it doesn't exist
+if [[ ! -d "$RECORDINGS_DIR" ]]; then
+    mkdir -p "$RECORDINGS_DIR"
+fi
+
+# Notification commands
+notify_cmd="notify-send -h string:x-canonical-private-synchronous:sys-notify-record -u low -i ${iDIR}/picture.png"
+
+# Get focused output for multi-monitor setups
+get_focused_output() {
+    niri msg focused-output 2>/dev/null | head -1 | grep -oP '\(\K[^)]+' || echo ""
+}
+
+# Check if recording is in progress
+is_recording() {
+    [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+}
+
+# Stop recording
+stop_recording() {
+    if is_recording; then
+        local pid=$(cat "$PIDFILE")
+
+        # Send SIGINT and wait for process to finish properly
+        kill -INT "$pid" 2>/dev/null
+
+        # Wait for wf-recorder to finalize the file (up to 5 seconds)
+        local count=0
+        while kill -0 "$pid" 2>/dev/null && [[ $count -lt 50 ]]; do
+            sleep 0.1
+            ((count++))
+        done
+
+        # Get the saved file path
+        if [[ -f "$RECORDFILE" ]]; then
+            local saved_file=$(cat "$RECORDFILE")
+            rm -f "$RECORDFILE"
+            $notify_cmd "Recording saved" "$saved_file"
+        else
+            $notify_cmd "Recording stopped" "Saved to $RECORDINGS_DIR"
+        fi
+
+        rm -f "$PIDFILE"
+    else
+        $notify_cmd "No recording in progress"
+    fi
+}
+
+# Start recording helper
+start_recording() {
+    local geometry="$1"
+    local with_audio="$2"
+    local time=$(date +%Y-%m-%d-%H-%M-%S)
+    local file="$RECORDINGS_DIR/Recording_${time}.mp4"
+
+    # Save the filename for later
+    echo "$file" > "$RECORDFILE"
+
+    # Build command arguments array
+    local -a args=(-y -f "$file")
+
+    # If no geometry specified, record focused output
+    if [[ -z "$geometry" ]]; then
+        local output=$(get_focused_output)
+        if [[ -n "$output" ]]; then
+            args+=(-o "$output")
+        fi
+    else
+        args+=(-g "$geometry")
+    fi
+
+    if [[ "$with_audio" == "true" ]]; then
+        args+=(-a)
+    fi
+
+    $notify_cmd "Recording started" "Press Mod+Shift+S to stop"
+
+    # Start recording in background and save actual PID
+    wf-recorder "${args[@]}" &
+    echo $! > "$PIDFILE"
+}
+
+# Record full screen
+record_screen() {
+    if is_recording; then
+        $notify_cmd "Recording already in progress" "Press Mod+Shift+S to stop"
+        return
+    fi
+    start_recording "" "false"
+}
+
+# Record full screen with audio
+record_screen_audio() {
+    if is_recording; then
+        $notify_cmd "Recording already in progress" "Press Mod+Shift+S to stop"
+        return
+    fi
+    start_recording "" "true"
+}
+
+# Record selected area
+record_area() {
+    if is_recording; then
+        $notify_cmd "Recording already in progress" "Press Mod+Shift+S to stop"
+        return
+    fi
+
+    local geometry
+    geometry=$(slurp -b "${background:1}CC" -c "${accent:1}ff" -s "${accent:1}0D" -w 2)
+
+    if [[ -z "$geometry" ]]; then
+        $notify_cmd "Recording cancelled"
+        return
+    fi
+
+    sleep 0.3
+    start_recording "$geometry" "false"
+}
+
+# Record selected area with audio
+record_area_audio() {
+    if is_recording; then
+        $notify_cmd "Recording already in progress" "Press Mod+Shift+S to stop"
+        return
+    fi
+
+    local geometry
+    geometry=$(slurp -b "${background:1}CC" -c "${accent:1}ff" -s "${accent:1}0D" -w 2)
+
+    if [[ -z "$geometry" ]]; then
+        $notify_cmd "Recording cancelled"
+        return
+    fi
+
+    sleep 0.3
+    start_recording "$geometry" "true"
+}
+
+# Toggle recording (for keybinding)
+toggle_recording() {
+    if is_recording; then
+        stop_recording
+    else
+        record_screen
+    fi
+}
+
+# Main
+case "$1" in
+    --screen)
+        record_screen
+        ;;
+    --screen-audio)
+        record_screen_audio
+        ;;
+    --area)
+        record_area
+        ;;
+    --area-audio)
+        record_area_audio
+        ;;
+    --stop)
+        stop_recording
+        ;;
+    --toggle)
+        toggle_recording
+        ;;
+    --status)
+        if is_recording; then
+            echo "Recording in progress (PID: $(cat "$PIDFILE"))"
+            if [[ -f "$RECORDFILE" ]]; then
+                echo "File: $(cat "$RECORDFILE")"
+            fi
+        else
+            echo "Not recording"
+        fi
+        ;;
+    *)
+        echo "Usage: screenrecord [OPTION]"
+        echo "Options:"
+        echo "  --screen        Record full screen"
+        echo "  --screen-audio  Record full screen with audio"
+        echo "  --area          Record selected area"
+        echo "  --area-audio    Record selected area with audio"
+        echo "  --stop          Stop recording"
+        echo "  --toggle        Toggle recording (start/stop)"
+        echo "  --status        Check recording status"
+        ;;
+esac
+
+exit 0

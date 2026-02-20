@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# ~/.config/niri/scripts/monitor_watcher.sh
+
+LOG_FILE="$HOME/.config/niri/workspace-gen.log"
+
+log_msg() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [monitor_watcher] $1" >> "$LOG_FILE"
+}
+
+# Wait for Hyprland socket to be available
+wait_for_socket() {
+  local max_attempts=30
+  local attempt=0
+  local socket_path="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+  log_msg "Waiting for Hyprland event socket..."
+
+  while [ $attempt -lt $max_attempts ]; do
+    if [ -S "$socket_path" ]; then
+      log_msg "Event socket ready after $attempt attempts"
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 0.5
+  done
+
+  log_msg "ERROR: Event socket not ready after $max_attempts attempts"
+  return 1
+}
+
+# Run initial workspace config generation
+log_msg "Starting monitor_watcher"
+~/.config/niri/scripts/generate_workspace_config
+
+handle() {
+  case $1 in
+  monitoradded* | monitorremoved*)
+    log_msg "Monitor change detected: $1"
+    sleep 1 # Wait for system to settle
+    ~/.config/niri/scripts/generate_workspace_config
+    ;;
+  esac
+}
+
+# Wait for socket before connecting
+if ! wait_for_socket; then
+  log_msg "ERROR: Cannot start monitor watcher - socket unavailable"
+  exit 1
+fi
+
+log_msg "Connecting to Hyprland event socket"
+socat -U - UNIX-CONNECT:"$XDG_RUNTIME_DIR"/hypr/"$HYPRLAND_INSTANCE_SIGNATURE"/.socket2.sock | while read -r line; do handle "$line"; done

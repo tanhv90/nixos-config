@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+## Watch for new screenshots and copy both image + path to clipboard
+## Works with niri's built-in screenshot UI
+
+WATCH_DIR="$HOME/Pictures/Screenshots"
+ICON_DIR="$HOME/.config/mako/icons"
+
+# Ensure directory exists
+mkdir -p "$WATCH_DIR"
+
+# Watch for new files
+inotifywait -m -e close_write --format '%w%f' "$WATCH_DIR" | while read -r filepath; do
+  # Only process png files
+  [[ "$filepath" != *.png ]] && continue
+
+  # Small delay to ensure file is fully written
+  sleep 0.2
+
+  # Verify file exists and has content
+  [[ ! -s "$filepath" ]] && continue
+
+  # Copy path to clipboard first (clipboard manager saves this)
+  echo -n "$filepath" | wl-copy
+
+  # Small delay for clipboard manager to register
+  sleep 0.1
+
+  # Copy image to clipboard (becomes active item)
+  wl-copy < "$filepath"
+
+  # Notify with both options
+  notify-send -h string:x-canonical-private-synchronous:screenshot \
+    -u low -i "${ICON_DIR}/picture.png" \
+    "Screenshot Saved" \
+    "Clipboard: image + path\n$filepath"
+done

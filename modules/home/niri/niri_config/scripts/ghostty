@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+## launch ghostty
+
+if [ "$1" == "-f" ]; then
+	ghostty --class=ghostty-float
+elif [ "$1" == "-F" ]; then
+	ghostty --class=ghostty-fullscreen \
+		  --fullscreen \
+		  --window-padding-x=30 \
+		  --window-padding-y=30 \
+		  --font-size=14 \
+		  --background-opacity=0.95
+else
+	ghostty "$@"
+fi

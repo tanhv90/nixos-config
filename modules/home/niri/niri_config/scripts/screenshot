@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+
+## Copyright (C) 2020-2024 Aditya Shakya <adi1090x@gmail.com>
+##
+## Script to take screenshots with grim, slurp (in Wayland)
+
+# Get Colors
+DIR="$HOME/.config/niri"
+background="$(cat "$DIR"/rofi/shared/colors.rasi | grep 'background:' | cut -d':' -f2 | tr -d ' '\;)"
+accent="$(cat "$DIR"/rofi/shared/colors.rasi | grep 'selected:' | cut -d':' -f2 | tr -d ' '\;)"
+
+iDIR="$HOME/.config/mako/icons"
+
+time=$(date +%Y-%m-%d-%H-%M-%S)
+dir="$HOME/Pictures/Screenshots/"
+file="Screenshot_${time}_${RANDOM}.png"
+
+# notify and view screenshot
+notify_cmd_shot="notify-send -h string:x-canonical-private-synchronous:sys-notify-shot -u low -i ${iDIR}/picture.png"
+notify_view() {
+  if [[ -e "$dir/$file" ]]; then
+    # Copy file path to clipboard (clipboard manager saves this)
+    echo -n "$dir/$file" | wl-copy
+    # Small delay to ensure clipboard manager registers both entries
+    sleep 0.1
+    # Copy image to clipboard (this becomes the active clipboard item)
+    wl-copy < "$dir/$file"
+    "$notify_cmd_shot" "Screenshot Saved" "Clipboard: image + path\n$dir/$file"
+  else
+    "$notify_cmd_shot" "Screenshot Deleted."
+  fi
+}
+
+# countdown
+countdown() {
+  for sec in "$(seq "$1" -1 1)"; do
+    notify-send -h string:x-canonical-private-synchronous:sys-notify-count -t 1000 -i "$iDIR"/timer.png "Taking shot in : $sec"
+    sleep 1
+  done
+}
+
+# take shots
+shotnow() {
+  cd "$dir" && sleep 0.5 && grim "$file"
+  notify_view
+}
+
+shot5() {
+  countdown '5'
+  sleep 1 && cd "$dir" && grim "$file"
+  notify_view
+}
+
+shot10() {
+  countdown '10'
+  sleep 1 && cd "$dir" && grim "$file"
+  notify_view
+}
+
+shotwin() {
+  # Get focused window geometry from niri
+  local geometry
+  geometry=$(niri msg --json focused-window | jq -r '"\(.x),\(.y) \(.width)x\(.height)"')
+
+  if [[ -z "$geometry" || "$geometry" == "null,null nullxnull" ]]; then
+    notify-send -u low "Screenshot" "No focused window"
+    return 1
+  fi
+
+  cd "$dir" && grim -g "$geometry" "$file"
+  notify_view
+}
+
+shotarea() {
+  # Capture the geometry using slurp
+  local geometry
+  geometry=$(slurp -b "${background:1}CC" -c "${accent:1}ff" -s "${accent:1}0D" -w 2)
+
+  # Check if slurp returned any geometry (user didn't cancel with Esc)
+  if [[ -z "$geometry" ]]; then
+    notify-send -u low "Screenshot" "Cancelled"
+    return 1
+  fi
+
+  # Give compositor a moment to clear slurp overlay
+  sleep 0.2
+  cd "$dir" && grim -g "$geometry" "$file"
+  notify_view
+}
+
+if [[ ! -d "$dir" ]]; then
+  mkdir -p "$dir"
+fi
+
+if [[ "$1" == "--now" ]]; then
+  shotnow
+elif [[ "$1" == "--in5" ]]; then
+  shot5
+elif [[ "$1" == "--in10" ]]; then
+  shot10
+elif [[ "$1" == "--win" ]]; then
+  shotwin
+elif [[ "$1" == "--area" ]]; then
+  shotarea
+else
+  echo -e "Available Options : --now --in5 --in10 --win --area"
+fi
+
+exit 0

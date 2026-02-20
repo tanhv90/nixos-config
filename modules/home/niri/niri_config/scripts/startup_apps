@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+## Startup application orchestrator for Niri
+## All apps have open-on-workspace window rules, so placement is
+## handled by niri. We just control launch order and ensure
+## terminal gets focus last.
+
+# Wait for Niri IPC to be available
+while ! niri msg --json outputs &>/dev/null 2>&1; do
+    sleep 0.2
+done
+
+# Phase 1: Chat & productivity apps (window rules -> chat/email workspace)
+anytype &
+signal-desktop &
+Telegram &
+viber &
+
+# Phase 2: Browser (window rule -> main-browser workspace)
+zen-twilight &
+
+# Phase 3: Terminal last so it gets focus (window rule -> main-term workspace)
+sleep 2
+niri msg action focus-workspace "main-term"
+exec ghostty

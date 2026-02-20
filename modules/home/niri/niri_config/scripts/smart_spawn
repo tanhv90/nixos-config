@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+# Smart spawn script for terminal and browser
+# Logic:
+# - 1 monitor: spawn on main-* workspace
+# - 2 monitors: spawn on the OTHER monitor's workspace
+#   (if on main/eDP-1 -> ext-*, if on ext -> main-*)
+
+APP_TYPE="$1"
+
+# Define apps
+TERMINAL="ghostty"
+BROWSER="zen-twilight"
+
+# Define output names
+MAIN_OUTPUT="eDP-1"
+
+# Get number of outputs
+output_count=$(niri msg --json outputs | jq 'length')
+
+# Get focused output
+focused_output=$(niri msg --json focused-output | jq -r '.name')
+
+# Determine target workspace based on app type and monitor logic
+get_target_workspace() {
+    local app_type="$1"
+    local workspace_suffix
+
+    case "$app_type" in
+        terminal) workspace_suffix="term" ;;
+        browser) workspace_suffix="browser" ;;
+        *) echo "Unknown app type: $app_type" >&2; exit 1 ;;
+    esac
+
+    if [[ "$output_count" -eq 1 ]]; then
+        # Single monitor: always use main-*
+        echo "main-$workspace_suffix"
+    else
+        # Multiple monitors: spawn on the OTHER monitor
+        if [[ "$focused_output" == "$MAIN_OUTPUT" ]]; then
+            # Currently on main (laptop) -> spawn on ext
+            echo "ext-$workspace_suffix"
+        else
+            # Currently on external -> spawn on main
+            echo "main-$workspace_suffix"
+        fi
+    fi
+}
+
+# Get the app to spawn
+get_app() {
+    case "$1" in
+        terminal) echo "$TERMINAL" ;;
+        browser) echo "$BROWSER" ;;
+        *) echo "Unknown app type: $1" >&2; exit 1 ;;
+    esac
+}
+
+# Main
+if [[ -z "$APP_TYPE" ]]; then
+    echo "Usage: smart_spawn <terminal|browser>"
+    exit 1
+fi
+
+target_workspace=$(get_target_workspace "$APP_TYPE")
+app=$(get_app "$APP_TYPE")
+
+# Focus the target workspace and spawn the app
+niri msg action focus-workspace "$target_workspace"
+exec $app

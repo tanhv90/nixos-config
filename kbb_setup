@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# kbb_setup — Nomad portable NixOS installation guide
+# Reference: ~/nixos-config
+#
+# Prerequisites: Arch Linux host, external SSD at /dev/sda
+
+set -euo pipefail
+
+cat <<'EOF'
+=== Nomad — Portable NixOS Setup ===
+
+1. INIT REPO
+   cd ~/nixos-config
+   git init && git add -A
+
+2. GENERATE AGE KEY
+   nix shell nixpkgs#age -c age-keygen -o /tmp/age-keys.txt
+   # Copy the public key (age1...) from the output
+
+3. CONFIGURE SOPS
+   # Edit .sops.yaml — replace the placeholder key with your public key
+   nvim .sops.yaml
+
+4. CREATE SECRETS
+   nix shell nixpkgs#sops -c sops secrets/secrets.yaml
+   # Add these keys in the editor:
+   #   users:
+   #     kbb:
+   #       hashedPassword: <paste output of: mkpasswd -m sha-512>
+   #
+   # Optional (if wifi.enable = true in Nomad/default.nix):
+   #   wifi:
+   #     credentials: |
+   #       mynetwork=mypassword
+
+5. VERIFY BUILD (before touching the disk)
+   nix build .#nixosConfigurations.Nomad.config.system.build.toplevel
+
+6. PARTITION DISK (/dev/sda — DESTROYS ALL DATA)
+   sudo nix run github:nix-community/disko -- --mode disko \
+     ~/nixos-config/systems/x86_64-linux/Nomad/disks.nix
+
+7. POPULATE PERSIST
+   sudo mkdir -p /mnt/persist/system/sops/age
+   sudo cp /tmp/age-keys.txt /mnt/persist/system/sops/age/keys.txt
+   sudo chmod 600 /mnt/persist/system/sops/age/keys.txt
+
+   sudo ssh-keygen -t ed25519 -f /mnt/persist/system/etc/ssh/ssh_host_ed25519_key -N ""
+   sudo ssh-keygen -t rsa -b 4096 -f /mnt/persist/system/etc/ssh/ssh_host_rsa_key -N ""
+
+   sudo mkdir -p /mnt/persist/home/kbb
+
+8. INSTALL
+   sudo nixos-install --flake ~/nixos-config#Nomad --root /mnt
+
+9. REBOOT
+   Boot into external SSD via BIOS boot menu (F12/F2/Del depending on hardware).
+   greetd login screen should appear → log in as kbb → niri starts.
+
+=== Post-Install ===
+
+- Rebuild:   sudo sys rebuild   (from ~/nixos-config)
+- Test:      sudo sys test
+- Update:    sudo sys update
+- Clean:     sys clean
+
+=== Disk Layout ===
+
+/dev/sda1  512MB  ESP (vfat, /boot/efi)
+/dev/sda2  8GB    swap
+/dev/sda3  rest   LUKS "nomad-crypt"
+                  └─ LVM VG "nomad-vg"
+                     └─ LV "nomad-lv" (btrfs, label: nomad)
+                        ├─ @root        → /        (wiped every boot)
+                        ├─ @nix         → /nix     (persistent)
+                        ├─ @persist     → /persist (persistent)
+                        └─ @root-blank  (rollback snapshot)
+
+=== File Structure ===
+
+flake.nix                              # Inputs + Snowfall (namespace: kbb)
+lib/module/default.nix                 # mkOpt, enabled/disabled helpers
+checks/pre-commit-hooks/default.nix    # deadnix, nixfmt, statix, sops
+shells/default/default.nix             # Dev shell
+.sops.yaml                             # Age key config (edit this!)
+secrets/secrets.yaml                   # Encrypted secrets (sops edit)
+
+modules/nixos/
+  default-desktop/  # kbb.default-desktop — fonts, locale, base packages
+  impermanence/     # modules.impermanence — tmpfs root + persist
+  sops/             # modules.sops — age-encrypted secrets
+  users/kbb/        # User definition, fish shell, home-manager link
+  fish/             # modules.fish — fish plugins
+  wifi/             # modules.wifi — wpa_supplicant (add networks here)
+  niri/             # modules.niri — Wayland WM, PipeWire, greetd
+  stubby/           # modules.stubby — DNS-over-TLS (Cloudflare)
+
+modules/home/
+  ghostty/          # kbb.ghostty — terminal emulator
+  fish/             # kbb.fish — shell config, abbreviations
+  starship/         # kbb.starship — prompt
+  neovim/           # kbb.neovim — editor + nil LSP
+  zellij/           # kbb.zellij — multiplexer
+  niri/             # kbb.niri — WM home config (scripts, waybar, mako, rofi, wallpapers)
+
+systems/x86_64-linux/Nomad/
+  default.nix                # System config — enables all modules
+  hardware-configuration.nix # Generic x86_64, initrd rollback
+  disks.nix                  # Disko partition layout
+
+home/kbb/
+  global/default.nix         # Base home config
+  Nomad.nix                  # Per-host: enables all home modules
+
+packages/sys/default.nix     # sys rebuild/test/update/clean
+EOF
