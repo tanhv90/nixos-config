@@ -22,7 +22,7 @@
           };
           swap = {
             priority = 2;
-            size = "8G";
+            size = "16G";
             content = {
               type = "swap";
               resumeDevice = false;

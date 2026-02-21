@@ -19,16 +19,9 @@
   modules = {
     fish.enable = true;
 
-    # Window manager
-    niri = {
-      enable = true;
-      greetd.enable = true;
-      greetd.autoLogin.enable = false;
-    };
-
     # Network
     stubby.enable = true;
-    wifi.enable = false; # Enable after adding networks to wifi module
+    wifi.enable = false;
 
     sops.enable = true;
 
@@ -38,6 +31,35 @@
       users = [ "kbb" ];
     };
   };
+
+  # KDE Plasma
+  services.desktopManager.plasma6.enable = true;
+  services.displayManager.sddm = {
+    enable = true;
+    wayland.enable = true;
+  };
+
+  # Audio
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+    jack.enable = true;
+  };
+
+  # Docker
+  virtualisation.docker = {
+    enable = true;
+    enableOnBoot = true;
+  };
+
+  # Tailscale
+  services.tailscale.enable = true;
+
+  # Cloudflared
+  services.cloudflared.enable = true;
 
   nix =
     let
@@ -114,11 +136,18 @@
     pciutils
     libva
     libva-utils
+
+    claude-code
+    firefox
+    _1password-gui
+    vscode
+    lazydocker
+    cloudflared
   ];
 
   networking = {
     hostName = "Nomad";
-    networkmanager.enable = false;
+    networkmanager.enable = true;
     firewall = {
       allowedTCPPorts = [ 22 ];
     };

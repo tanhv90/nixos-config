@@ -40,15 +40,11 @@ in
         "/var/lib/nixos"
         "/var/lib/systemd/coredump"
         "/var/lib/NetworkManager"
+        "/etc/NetworkManager/system-connections"
         "/var/lib/libvirt"
         "/var/lib/cups"
+        "/var/lib/tailscale"
         "/var/lib/sddm"
-        {
-          directory = "/var/lib/colord";
-          user = "colord";
-          group = "colord";
-          mode = "0755";
-        }
       ];
       files = [
         "/etc/machine-id"
@@ -93,7 +89,8 @@ in
       "d ${cfg.persistPath}/system/etc/ssh 0755 root root -"
       "d ${cfg.persistPath}/system/sops/age 0700 root root -"
       "d ${cfg.persistPath}/home 0755 root root -"
-    ];
+    ]
+    ++ (map (user: "d ${cfg.persistPath}/home/${user} 0700 ${user} users -") cfg.users);
 
     # Use tmpfs for /tmp
     boot.tmp.useTmpfs = true;

@@ -9,6 +9,7 @@
       acpilight
       sct
       sound-theme-freedesktop
+      telegram-desktop
     ];
 
     sessionVariables = {
@@ -26,8 +27,6 @@
     starship.enable = true;
     zellij.enable = true;
     neovim.enable = true;
-    niri = {
-      enable = true;
-    };
+    onlyoffice.enable = true;
   };
 }

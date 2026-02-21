@@ -16,6 +16,7 @@
         "tty"
         "docker"
         "dialout"
+        "networkmanager"
       ];
 
       shell = pkgs.fish;
