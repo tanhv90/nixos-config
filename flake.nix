@@ -33,6 +33,11 @@
       url = "github:snowfallorg/flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    neve = {
+      url = "github:sinh-x/Neve";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =

@@ -137,7 +137,6 @@
     libva
     libva-utils
 
-    claude-code
     firefox
     _1password-gui
     vscode
