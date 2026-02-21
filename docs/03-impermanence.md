@@ -8,11 +8,13 @@ Over time, NixOS systems accumulate state in `/`, `/var`, `/etc`, `/home` — co
 
 **Wipe `/` on every boot.** Only explicitly listed paths survive. If it's not in your config and not on the persist list, it's gone. This guarantees your system is *exactly* what your Nix config declares.
 
+**Note:** This applies to the **Nomad** host only. **Desktop** uses a traditional persistent ext4 root.
+
 ## Three Layers Working Together
 
-### Layer 1: Disk Layout (disko) — Emberroot Example
+### Layer 1: Disk Layout (disko) — Nomad
 
-`systems/x86_64-linux/Emberroot/disks.nix`
+`systems/x86_64-linux/Nomad/disks.nix`
 
 The btrfs partition has 4 subvolumes:
 
@@ -49,28 +51,12 @@ environment.persistence."/persist/system" = {
 These are bind-mounted from `/persist/system/var/log` -> `/var/log`, etc.
 
 Special handling:
-- **SSH host keys** (line 76-86): stored in `/persist/system/etc/ssh/` so host identity survives reboots
-- **Home directories** (line 62-73): entire `/home/sinh` is bind-mounted from `/persist/home/sinh`
+- **SSH host keys**: stored in `/persist/system/etc/ssh/` so host identity survives reboots
+- **Home directories**: entire `/home/kbb` is bind-mounted from `/persist/home/kbb`
 
-### Layer 3: Home Persistence (optional) — `modules/home/impermanence/default.nix`
+### Layer 3: Home Persistence (optional) — `modules/home/impermanence/`
 
-A more selective approach — instead of persisting all of `/home`, list exactly which dotfiles survive:
-
-```nix
-home.persistence."/persist" = {
-  directories = [
-    ".ssh"                    # SSH keys
-    ".config/sops/age"        # age private key
-    ".mozilla/firefox"        # browser profile
-    ".cargo"                  # rust toolchain
-    "Documents"
-    "git-repos"
-    # ...
-  ];
-};
-```
-
-Currently **disabled** for Emberroot — it uses the simpler whole-home bind mount from Layer 2.
+A more selective approach — instead of persisting all of `/home`, list exactly which dotfiles survive. Currently not active for Nomad (uses the simpler whole-home bind mount from Layer 2).
 
 ## The Wipe Script — `hardware-configuration.nix`
 
@@ -79,7 +65,7 @@ This is the initrd script that runs before NixOS mounts anything:
 ```bash
 # 1. Mount the raw btrfs partition (no subvolume filter)
 mkdir -p /mnt
-mount -t btrfs -o subvol=/ /dev/disk/by-label/emberroot /mnt
+mount -t btrfs -o subvol=/ /dev/nomad-vg/nomad-lv /mnt
 
 # 2. If the blank snapshot exists...
 if [[ -e /mnt/@root-blank ]]; then
@@ -103,7 +89,7 @@ umount /mnt
 
 After this, `@root` is empty. NixOS's activation scripts populate `/` from `/nix/store`.
 
-## Boot Timeline
+## Boot Timeline (Nomad)
 
 ```
 Power on
@@ -115,8 +101,15 @@ UEFI loads systemd-boot from /boot/efi (ESP, untouched)
 Kernel + initrd load into RAM
   |
   v
+initrd prompts: "Enter passphrase for nomad-crypt: ________"
+  |  (LUKS decrypts /dev/sda3 -> /dev/mapper/nomad-crypt)
+  |
+  v
+LVM activates: /dev/mapper/nomad-crypt -> /dev/nomad-vg/nomad-lv
+  |
+  v
 initrd runs postDeviceCommands:              <-- THE WIPE
-  |  mount raw btrfs
+  |  mount btrfs from LVM device
   |  delete @root
   |  snapshot @root-blank -> @root           (root is now empty)
   |  unmount
@@ -138,7 +131,7 @@ impermanence bind-mounts kick in:
   |  /persist/system/var/log       -> /var/log
   |  /persist/system/var/lib/docker -> /var/lib/docker
   |  /persist/system/etc/ssh       -> (SSH host keys)
-  |  /persist/home/sinh            -> /home/sinh
+  |  /persist/home/kbb             -> /home/kbb
   |
   v
 sops-nix decrypts secrets:
@@ -150,7 +143,7 @@ sops-nix decrypts secrets:
 System is ready
 ```
 
-## What Lives Where
+## What Lives Where (Nomad)
 
 | Path | Subvolume | Survives reboot? | Why |
 |------|-----------|-----------------|-----|
@@ -158,7 +151,7 @@ System is ready
 | `/nix` | `@nix` | Yes | Contains the Nix store — all packages, system config |
 | `/persist` | `@persist` | Yes | Explicitly saved state |
 | `/boot/efi` | ESP partition | Yes | Separate FAT32 partition entirely |
-| `/home/sinh` | bind mount from `@persist` | Yes | impermanence module bind-mounts it |
+| `/home/kbb` | bind mount from `@persist` | Yes | impermanence module bind-mounts it |
 | `/var/log` | bind mount from `@persist` | Yes | Listed in `environment.persistence` |
 | `/run/secrets` | tmpfs (RAM) | No | Decrypted secrets, gone on power off |
 | `/tmp` | tmpfs (RAM) | No | `boot.tmp.useTmpfs = true` |
@@ -166,54 +159,6 @@ System is ready
 ## Why `/nix` Doesn't Need to Be in `/persist`
 
 `/nix` has its own subvolume because it's **pure and reproducible**. Everything in `/nix/store` is derived from your flake — you can always rebuild it. But you don't want to rebuild it every boot, so it gets its own persistent subvolume. It's not "state" — it's deterministic build output.
-
-## Initial Setup: Populating `/persist`
-
-### Fresh Install (from NixOS installer)
-
-```bash
-# 1. Partition the disk with disko
-nix run github:nix-community/disko -- --mode disko ./disks.nix
-
-# 2. Subvolumes are now mounted:
-#    @root -> /mnt, @nix -> /mnt/nix, @persist -> /mnt/persist
-
-# 3. Create directory structure on /persist
-mkdir -p /mnt/persist/system/sops/age
-mkdir -p /mnt/persist/system/etc/ssh
-mkdir -p /mnt/persist/system/var/log
-mkdir -p /mnt/persist/system/var/lib/nixos
-mkdir -p /mnt/persist/home/sinh
-
-# 4. Copy age private key (from USB, scp, etc.)
-cp /path/to/keys.txt /mnt/persist/system/sops/age/keys.txt
-chmod 600 /mnt/persist/system/sops/age/keys.txt
-
-# 5. Generate SSH host keys in persist location
-ssh-keygen -t ed25519 -f /mnt/persist/system/etc/ssh/ssh_host_ed25519_key -N ""
-ssh-keygen -t rsa -b 4096 -f /mnt/persist/system/etc/ssh/ssh_host_rsa_key -N ""
-
-# 6. Install
-nixos-install --flake .#Emberroot
-
-# 7. Reboot — impermanence wipes @root, bind-mounts from /persist
-```
-
-### Migrating an Existing System
-
-```bash
-# Copy state while system is live:
-sudo mkdir -p /persist/system/sops/age
-sudo cp /home/sinh/.config/sops/age/keys.txt /persist/system/sops/age/keys.txt
-sudo mkdir -p /persist/system/etc/ssh
-sudo cp /etc/ssh/ssh_host_* /persist/system/etc/ssh/
-sudo cp -a /var/lib/nixos /persist/system/var/lib/
-sudo cp -a /var/log /persist/system/
-sudo cp -a /home/sinh /persist/home/
-sudo cp /etc/machine-id /persist/system/etc/machine-id
-
-# Enable impermanence, add wipe script, rebuild, reboot
-```
 
 ## The Discipline
 

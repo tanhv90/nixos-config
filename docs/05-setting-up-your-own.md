@@ -78,7 +78,7 @@ Snowfall discovers everything by directory name — no manual imports needed.
 
   # Enable your modules (from modules/nixos/)
   modules = {
-    # wm.hyprland.enable = true;
+    # docker.enable = true;
   };
 
   boot.loader.systemd-boot.enable = true;
@@ -135,24 +135,24 @@ nixos-generate-config --show-hardware-config > systems/x86_64-linux/<hostname>/h
   home.packages = with pkgs; [ firefox ];
 
   my = {
-    # cli-apps.terminal.ghostty.enable = true;
-    # apps.web.firefox.enable = true;
+    # ghostty.enable = true;
+    # neovim.enable = true;
   };
 }
 ```
 
 ## 5. Create Your First Home Module
 
-`modules/home/cli-apps/ghostty/default.nix`:
+`modules/home/ghostty/default.nix`:
 
 ```nix
 { lib, config, namespace, ... }:
 with lib;
 let
-  cfg = config.${namespace}.cli-apps.terminal.ghostty;
+  cfg = config.${namespace}.ghostty;
 in
 {
-  options.${namespace}.cli-apps.terminal.ghostty = {
+  options.${namespace}.ghostty = {
     enable = mkEnableOption "Ghostty terminal";
   };
 
@@ -168,8 +168,8 @@ in
 ```
 
 The pattern:
-1. `cfg = config.${namespace}.path.to.module` — reference
-2. `options.${namespace}.path.to.module` — declare the enable option
+1. `cfg = config.${namespace}.module-name` — reference
+2. `options.${namespace}.module-name` — declare the enable option
 3. `config = mkIf cfg.enable { ... }` — only apply when enabled
 
 `namespace` is a special argument Snowfall passes to every module.
@@ -237,7 +237,7 @@ No duplication — both hosts share the same module definitions.
 
 ## Nomad: Build & Install on External SSD (from Arch Linux)
 
-This section covers installing the **Nomad** host (this repo) to an external SSD from an Arch Linux machine.
+This section covers installing the **Nomad** host to an external SSD from an Arch Linux machine.
 
 ### Prerequisites
 
@@ -283,7 +283,7 @@ lsblk -o NAME,SIZE,MODEL,TRAN
 cp systems/x86_64-linux/Nomad/disks.nix /tmp/disks.nix
 sudo $(which nix) --extra-experimental-features "nix-command flakes" \
   run github:nix-community/disko -- --mode disko /tmp/disks.nix
-# You'll set a LUKS passphrase — typed every boot
+# You'll set a LUKS passphrase — choose something strong, typed every boot
 ```
 
 ### Step 4: Populate Persistent Storage
@@ -319,7 +319,7 @@ sudo cp -r /home/kbb/nixos-config/. /mnt/persist/home/kbb/nixos-config/
 sudo chown -R 1000:100 /mnt/persist/home/kbb/nixos-config
 ```
 
-Reboot → BIOS boot menu → select external SSD → LUKS passphrase → SDDM login → KDE Plasma.
+Reboot -> BIOS boot menu -> select external SSD -> LUKS passphrase -> SDDM login -> KDE Plasma.
 
 ### Reinstalling (after config changes, from Arch)
 
@@ -363,9 +363,9 @@ sudo sys test       # Ephemeral test (faster)
 /dev/sda3  rest   LUKS "nomad-crypt"
                   └─ LVM VG "nomad-vg"
                      └─ LV "nomad-lv" (btrfs, label: nomad)
-                        ├─ @root        → /        (wiped every boot)
-                        ├─ @nix         → /nix     (persistent)
-                        ├─ @persist     → /persist (persistent)
+                        ├─ @root        -> /        (wiped every boot)
+                        ├─ @nix         -> /nix     (persistent)
+                        ├─ @persist     -> /persist (persistent)
                         └─ @root-blank  (rollback snapshot)
 ```
 

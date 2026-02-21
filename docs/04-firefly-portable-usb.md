@@ -1,30 +1,19 @@
-# FireFly: Portable Encrypted NixOS on USB
+# Nomad: Portable Encrypted NixOS on External SSD
 
 ## The Idea
 
-Carry a 128GB USB drive, plug it into **any** x86_64 PC, boot from it, and get a full NixOS desktop with all data encrypted. If someone steals the USB, they can't read anything.
+Carry an external SSD, plug it into **any** x86_64 PC, boot from it, and get a full NixOS desktop with all data encrypted. If someone steals the SSD, they can't read anything.
 
 ## Disk Layout: LUKS + LVM + btrfs
 
-### Compared to Emberroot (plain btrfs)
-
-**Emberroot:**
 ```
-/dev/sda
-├── ESP (512MB)
-├── btrfs partition -> @root, @nix, @persist, @root-blank
-└── swap (32GB)
-```
-
-**FireFly:**
-```
-/dev/sda  (128GB USB)
+/dev/sda  (external SSD)
 ├── ESP (512MB, unencrypted)     <- bootloader must be readable
-├── swap (8GB, unencrypted)
-└── LUKS partition "mobi-crypt"  <- everything below is encrypted
-    └── LVM VG "mobi-vg"
-        └── LV "mobi-lv"
-            └── btrfs (label: "mobi")
+├── swap (16GB, unencrypted)
+└── LUKS partition "nomad-crypt" <- everything below is encrypted
+    └── LVM VG "nomad-vg"
+        └── LV "nomad-lv"
+            └── btrfs (label: "nomad")
                 ├── @root        -> /         (wiped every boot)
                 ├── @nix         -> /nix      (persistent)
                 ├── @persist     -> /persist  (persistent)
@@ -35,9 +24,9 @@ Carry a 128GB USB drive, plug it into **any** x86_64 PC, boot from it, and get a
 
 | Layer | Purpose |
 |-------|---------|
-| **LUKS** | Full-disk encryption. On boot, type a passphrase to unlock `mobi-crypt`. Without it, the entire partition is random noise. |
-| **LVM** | Logical Volume Manager. Flexible abstraction over the encrypted block device. One VG (`mobi-vg`), one LV (`mobi-lv`). |
-| **btrfs** | Same subvolume layout as Emberroot — `@root` gets wiped, `@persist` and `@nix` survive. |
+| **LUKS** | Full-disk encryption. On boot, type a passphrase to unlock `nomad-crypt`. Without it, the entire partition is random noise. |
+| **LVM** | Logical Volume Manager. Flexible abstraction over the encrypted block device. One VG (`nomad-vg`), one LV (`nomad-lv`). |
+| **btrfs** | Subvolume layout — `@root` gets wiped, `@persist` and `@nix` survive. |
 
 ## How disko Declares This — `disks.nix`
 
@@ -49,18 +38,18 @@ root = {
   size = "100%";
   content = {
     type = "luks";              # <- Layer 1: encrypt the partition
-    name = "mobi-crypt";
+    name = "nomad-crypt";
     settings.allowDiscards = true;
     content = {
       type = "lvm_pv";          # <- Layer 2: make it an LVM physical volume
-      vg = "mobi-vg";
+      vg = "nomad-vg";
     };
   };
 };
 
 # The LVM volume group
-lvm_vg."mobi-vg" = {
-  lvs."mobi-lv" = {
+lvm_vg."nomad-vg" = {
+  lvs."nomad-lv" = {
     size = "100%FREE";
     content = {
       type = "btrfs";           # <- Layer 3: btrfs inside the LV
@@ -77,10 +66,8 @@ lvm_vg."mobi-vg" = {
 
 ## Boot Sequence
 
-The key difference from Emberroot: LUKS decryption happens before the wipe.
-
 ```
-Power on, select USB in BIOS boot menu
+Power on, select external SSD in BIOS boot menu
   |
   v
 UEFI loads systemd-boot from ESP (unencrypted, /dev/sda1)
@@ -89,56 +76,39 @@ UEFI loads systemd-boot from ESP (unencrypted, /dev/sda1)
 Kernel + initrd load
   |
   v
-initrd prompts: "Enter passphrase for mobi-crypt: ________"
-  |  (LUKS decrypts /dev/sda3 -> /dev/mapper/mobi-crypt)
+initrd prompts: "Enter passphrase for nomad-crypt: ________"
+  |  (LUKS decrypts /dev/sda3 -> /dev/mapper/nomad-crypt)
   |
   v
-LVM activates: /dev/mapper/mobi-crypt -> /dev/mobi-vg/mobi-lv
+LVM activates: /dev/mapper/nomad-crypt -> /dev/nomad-vg/nomad-lv
   |
   v
 initrd postDeviceCommands (the wipe):
-  |  mount /dev/mobi-vg/mobi-lv -> /mnt     <- LVM device, not disk label
+  |  mount /dev/nomad-vg/nomad-lv -> /mnt     <- LVM device, not disk label
   |  delete @root
   |  snapshot @root-blank -> @root
   |  unmount
   |
   v
-Normal NixOS boot (same as Emberroot from here)
+Normal NixOS boot
   |  mount subvolumes, bind-mount from /persist, decrypt sops secrets
   |
   v
 System ready
 ```
 
-### The Mount Difference
-
-Emberroot mounts btrfs from a partition label:
-```bash
-mount -t btrfs -o subvol=/ /dev/disk/by-label/emberroot /mnt
-```
-
-FireFly mounts from the LVM device (only exists after LUKS unlock):
-```bash
-mount -t btrfs -o subvol=/ /dev/mobi-vg/mobi-lv /mnt
-```
-
 ## What Makes It "Hardware-Generic"
 
-| | Emberroot | FireFly |
-|---|---|---|
-| GPU driver | `nvidia` (specific) | `modesetting` (generic, works on any GPU) |
-| CPU microcode | Intel only | Both Intel and AMD (`kvm-intel` + `kvm-amd`) |
-| `greetd.autoLogin` | `true` | `false` (need login — shared machines) |
-| Docker | enabled | disabled (save space on 128GB) |
-| VSCode, Flutter, etc. | enabled | disabled (lighter footprint) |
-| NVIDIA packages | yes | none |
+| Setting | Why |
+|---|---|
+| GPU driver: `modesetting` | Generic, works on any GPU (Intel, AMD, basic NVIDIA) |
+| CPU: both `kvm-intel` + `kvm-amd` | Boots on any x86_64 processor |
+| Impermanence | LUKS + btrfs wipe ensures clean state every boot |
 
-The `modesetting` video driver is the kernel's built-in generic driver — it works with Intel, AMD, and even basic NVIDIA without proprietary drivers.
+## Why LUKS Matters for a Portable SSD
 
-## Why LUKS Matters for a USB
-
-A portable USB can be lost or stolen. Without LUKS:
-- Plug the USB into any Linux machine
+A portable SSD can be lost or stolen. Without LUKS:
+- Plug the SSD into any Linux machine
 - Mount the btrfs partition
 - Read everything: `@persist` has the age private key, SSH keys, browser profiles, all of `/home`
 
@@ -154,16 +124,3 @@ You might wonder why not just LUKS -> btrfs directly. LVM adds flexibility:
 - Standard convention for encrypted Linux installs
 
 In practice for a single-LV setup like this, it adds minimal overhead. Mainly future-proofing and following the common LUKS+LVM pattern.
-
-## Home Config Differences
-
-`home/sinh/FireFly.nix` is based on Emberroot but lighter:
-- `office.enable = false` — no LibreOffice suite
-- `coding.editor.vscode.enable = false` — no VSCode
-- `coding.docker.enable = false` — no Docker
-- `coding.super-productivity.enable = false`
-- `coding.devbox.enable = false`
-- `coding.flutter.enable = false`
-- `multimedia.tools.kdenlive.enable = false` — no video editing
-
-Core tools kept: Neovim, Ghostty, Zellij, Claude Code, browsers, chat apps.

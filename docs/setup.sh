@@ -194,14 +194,17 @@ modules/home/
   starship/         # kbb.starship — prompt
   neovim/           # kbb.neovim — editor + treesitter, telescope, LSP, completion
   zellij/           # kbb.zellij — multiplexer
+  ai-tools/         # kbb.ai-tools — Claude Code
+  onlyoffice/       # kbb.onlyoffice — office suite
   niri/             # kbb.niri — niri home config (available but not active)
 
 overlays/
-  claude-code/      # Latest Claude Code version overlay
+  claude-code/      # Claude Code version overlay
+  neve/             # Neve nixvim overlay
 
 systems/x86_64-linux/Nomad/
   default.nix                # System config — KDE Plasma, Docker, Tailscale, Cloudflared
-  hardware-configuration.nix # Generic x86_64, initrd rollback
+  hardware-configuration.nix # Generic x86_64, LUKS+LVM, initrd rollback
   disks.nix                  # Disko partition layout
 
 home/kbb/

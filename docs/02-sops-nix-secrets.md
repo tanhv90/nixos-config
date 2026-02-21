@@ -12,8 +12,8 @@ NixOS configs live in a git repo and get copied to `/nix/store`, which is **worl
 
 ### 1. The Age Keypair
 
-- **Public key** is in `.sops.yaml`: `age1u0h8j45ym4jq...`
-- **Private key** lives on the machine at `/home/sinh/.config/sops/age/keys.txt` (or `/persist/system/sops/age/keys.txt` with impermanence)
+- **Public key** is in `.sops.yaml`
+- **Private key** lives on the machine at `/home/kbb/.config/sops/age/keys.txt` (or `/persist/system/sops/age/keys.txt` with impermanence)
 - The private key is **never** committed to git
 
 ### 2. The Encrypted File — `secrets/secrets.yaml`
@@ -24,23 +24,22 @@ nix:
 wifi:
     credentials: ENC[AES256_GCM,data:yvd/qDpS...,type:str]
 users:
-    sinh:
+    kbb:
         hashedPassword: ENC[AES256_GCM,data:2fpIPgq4...,type:str]
 ```
 
 The YAML structure is readable (you can see the key names), but every value is AES-256 encrypted. Only the age private key can decrypt them.
 
-### 3. The NixOS Module — `modules/nixos/system/security/sops/default.nix`
+### 3. The NixOS Module — `modules/nixos/sops/default.nix`
 
 ```nix
 sops = {
   defaultSopsFile = ../../../../../secrets/secrets.yaml;  # where encrypted file is
-  age.keyFile = "/persist/system/sops/age/keys.txt";      # where private key is
+  age.keyFile = "/home/kbb/.config/sops/age/keys.txt";    # where private key is
 
   secrets = {
-    "nix/github_access_token" = { owner = "sinh"; };      # decrypt as user sinh
-    "wifi/credentials" = { owner = "wpa_supplicant"; };    # decrypt for wifi daemon
-    "users/sinh/hashedPassword" = { neededForUsers = true; }; # needed before login
+    "nix/github_access_token" = { owner = "kbb"; };
+    "users/kbb/hashedPassword" = { neededForUsers = true; };
   };
 };
 ```
@@ -55,16 +54,9 @@ sops-nix:
 
 ### 5. Other Modules Reference the Decrypted Paths
 
-- **WiFi module** (`modules/nixos/wifi/default.nix`):
+- **User module** (`modules/nixos/users/kbb/default.nix`):
   ```nix
-  secretsFile = config.sops.secrets."wifi/credentials".path;
-  ```
-  wpa_supplicant reads passwords from the decrypted file at runtime.
-  The `ext:vuonnha` syntax in the WiFi config references named entries inside that credentials file.
-
-- **User module** (`modules/nixos/users/sinh/default.nix`):
-  ```nix
-  hashedPasswordFile = config.sops.secrets."users/sinh/hashedPassword".path;
+  hashedPasswordFile = config.sops.secrets."users/kbb/hashedPassword".path;
   ```
   The user's login password hash comes from the encrypted file, never hardcoded.
 
@@ -91,27 +83,27 @@ So `keys.txt` is **manually placed** on the machine.
 **Generate the keypair (once, on any machine):**
 ```bash
 age-keygen -o keys.txt
-# outputs: Public key: age1u0h8j45ym4jqffhc6jlr8metcl4czylv7ct7ngusrxrklnfsgvmsd8qzvs
+# outputs: Public key: age1...
 ```
 
 **Copy to the machine:**
-- Normal system: `/home/sinh/.config/sops/age/keys.txt`
-- Impermanence system: `/persist/system/sops/age/keys.txt`
+- Normal system (Desktop): `/home/kbb/.config/sops/age/keys.txt`
+- Impermanence system (Nomad): `/persist/system/sops/age/keys.txt`
 
-**The sops module auto-detects** (`modules/nixos/system/security/sops/default.nix:27-30`):
+**The sops module auto-detects** (`modules/nixos/sops/default.nix`):
 ```nix
 age.keyFile =
   if config.modules.impermanence.enable or false then
     "/persist/system/sops/age/keys.txt"
   else
-    "/home/sinh/.config/sops/age/keys.txt";
+    "/home/kbb/.config/sops/age/keys.txt";
 ```
 
 ### What `keys.txt` Looks Like
 
 ```
 # created: 2024-01-15T10:30:00Z
-# public key: age1u0h8j45ym4jqffhc6jlr8metcl4czylv7ct7ngusrxrklnfsgvmsd8qzvs
+# public key: age1...
 AGE-SECRET-KEY-1QFWK... (the actual private key)
 ```
 
@@ -124,15 +116,11 @@ AGE-SECRET-KEY-1QFWK... (the actual private key)
 | `scp` from another machine | Over network during install |
 | Password manager | Copy-paste into the file |
 
-The impermanence module's `systemd.tmpfiles.rules` pre-creates the directory:
-```nix
-"d ${cfg.persistPath}/system/sops/age 0700 root root -"
-```
-
 ### Summary
 
 - Generated once manually with `age-keygen`
 - Copied to the machine by hand (USB, SSH, etc.)
 - Never committed to git, never managed by Nix
-- Stored in `/persist/` so impermanence doesn't wipe it
+- On Nomad: stored in `/persist/` so impermanence doesn't wipe it
+- On Desktop: stored in `~/.config/sops/age/` (persistent root, no special handling needed)
 - Everything else is encrypted to this key and safely lives in git

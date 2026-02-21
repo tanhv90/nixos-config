@@ -2,13 +2,13 @@
 
 ## What This Repo Is
 
-A multi-host NixOS configuration for a user named "sinh", managing 4 machines from a single flake using **Snowfall Lib** as the organizational framework on top of NixOS + home-manager.
+A multi-host NixOS configuration managing machines from a single flake using **Snowfall Lib** as the organizational framework on top of NixOS + home-manager.
 
 ## Key Architecture Concepts
 
 ### Snowfall Lib — The Glue
 
-Snowfall Lib (`flake.nix:103-116`) is the central piece. Instead of manually wiring up modules, hosts, overlays, etc., Snowfall **auto-discovers** everything based on directory conventions:
+Snowfall Lib is the central piece. Instead of manually wiring up modules, hosts, overlays, etc., Snowfall **auto-discovers** everything based on directory conventions:
 
 - `systems/x86_64-linux/<hostname>/` — NixOS system configurations
 - `modules/nixos/` — NixOS modules (auto-loaded for all hosts)
@@ -19,26 +19,26 @@ Snowfall Lib (`flake.nix:103-116`) is the central piece. Instead of manually wir
 - `checks/` — Flake checks (pre-commit hooks)
 - `shells/` — Dev shells
 
-The namespace is set to `sinh-x`, which means all home modules are accessed via `sinh-x.*` and NixOS modules via `modules.*`.
+The namespace is set to `kbb`, which means all home modules are accessed via `kbb.*` and NixOS modules via `modules.*`.
 
 ### Two-Layer Module System
 
 The config splits into **system-level** and **user-level**:
 
 **NixOS modules** (`modules/nixos/`) — system-wide concerns:
-- Window managers, Docker, networking, audio, secrets
+- Desktop environment, Docker, networking, audio, secrets
 - Accessed as `modules.<name>.enable`
-- Example: `modules.wm.niri.enable = true` in Emberroot's system config
+- Example: `modules.stubby.enable = true`
 
 **Home modules** (`modules/home/`) — user-level, per-application:
-- Terminal emulators, editors, browsers, dev tools
-- Accessed as `sinh-x.<category>.<name>.enable`
-- Example: `sinh-x.cli-apps.terminal.ghostty.enable = true`
+- Terminal emulators, editors, shell config, dev tools
+- Accessed as `kbb.<name>.enable`
+- Example: `kbb.ghostty.enable = true`
 
-Each module follows the same pattern (see ghostty as an example):
+Each module follows the same pattern:
 ```nix
-cfg = config.${namespace}.cli-apps.terminal.ghostty;
-options.${namespace}.cli-apps.terminal.ghostty = {
+cfg = config.${namespace}.ghostty;
+options.${namespace}.ghostty = {
   enable = mkEnableOption "Ghostty";
 };
 config = mkIf cfg.enable { /* actual config */ };
@@ -48,21 +48,16 @@ config = mkIf cfg.enable { /* actual config */ };
 
 Each host picks what it needs by toggling options:
 
-| | Emberroot | Elderwood | Drgnfly | FireFly |
-|---|-----------|-----------|---------|---------|
-| **WM** | niri | BSPWM | BSPWM | niri |
-| **Role** | Primary desktop | Secondary desktop | Laptop | Portable USB |
-| **GPU** | NVIDIA + Intel | DisplayLink | DisplayLink | Generic (modesetting) |
-| **Encryption** | None | None | None | LUKS |
+| | Nomad | Desktop |
+|---|---|---|
+| **Role** | Portable SSD | Stationary desktop PC |
+| **GPU** | Generic (modesetting) | NVIDIA RTX 3060 (proprietary) |
+| **Encryption** | LUKS + impermanence | None (persistent ext4 root) |
+| **Root FS** | btrfs (wiped every boot) | ext4 (traditional persistent) |
 
 **System config** (`systems/x86_64-linux/<hostname>/default.nix`): hardware, boot, networking, which NixOS modules to enable.
 
-**Home config** (`home/sinh/<hostname>.nix`): imports `./global` (shared base), then enables specific apps/tools per host.
-
-### External Projects via Overlays
-
-The user maintains several personal Rust/Nix projects (`sinh-x-*`), brought in as flake inputs and exposed through `overlays/sinh-x/default.nix`. This makes them available as regular `pkgs.*` packages:
-- `pkgs.sinh-x-pomodoro`, `pkgs.sinh-x-wallpaper`, `pkgs.nixvim`, `pkgs.zjstatus`, etc.
+**Home config** (`home/kbb/<hostname>.nix`): imports `./global` (shared base), then enables specific apps/tools per host.
 
 ### Custom Lib Helpers
 
@@ -71,7 +66,7 @@ The user maintains several personal Rust/Nix projects (`sinh-x-*`), brought in a
 - `mkBoolOpt` — quick boolean option creation
 - `mkOpt` / `mkOpt'` — option creation helpers
 
-These are available as `lib.sinh-x.enabled`, `lib.sinh-x.mkBoolOpt`, etc. throughout the config.
+These are available as `lib.kbb.enabled`, `lib.kbb.mkBoolOpt`, etc. throughout the config.
 
 ## Directory Structure
 
@@ -79,30 +74,37 @@ These are available as `lib.sinh-x.enabled`, `lib.sinh-x.mkBoolOpt`, etc. throug
 systems/x86_64-linux/<hostname>/
   ├── default.nix              # System configuration
   ├── hardware-configuration.nix
-  └── disks.nix (disko)
+  └── disks.nix                # (Nomad only — disko partition layout)
 
-home/sinh/
+home/kbb/
   ├── global/                   # Shared home config
   └── <hostname>.nix           # Per-host home config
 
 modules/
   ├── nixos/                    # System modules (modules.*)
-  │   ├── wm/{bspwm,hyprland,niri}
-  │   ├── default-desktop
-  │   ├── impermanence
-  │   ├── system/security/sops
-  │   └── users/sinh
-  └── home/                     # Home modules (sinh-x.*)
-      ├── apps/
-      ├── cli-apps/
-      ├── coding/
-      ├── wm/
-      ├── impermanence/
-      └── security/
+  │   ├── default-desktop/
+  │   ├── fish/
+  │   ├── impermanence/
+  │   ├── niri/
+  │   ├── sops/
+  │   ├── stubby/
+  │   ├── users/kbb/
+  │   └── wifi/
+  └── home/                     # Home modules (kbb.*)
+      ├── ai-tools/
+      ├── fish/
+      ├── ghostty/
+      ├── neovim/
+      ├── onlyoffice/
+      ├── starship/
+      ├── zellij/
+      └── niri/
 
 lib/module/                     # Helper functions
-overlays/sinh-x/               # External flake inputs as pkgs
-packages/                       # Custom derivations
+overlays/
+  ├── claude-code/              # Claude Code version overlay
+  └── neve/                     # Neve nixvim overlay
+packages/sys/                   # sys rebuild/test/update/clean
 ```
 
 ## Data Flow Summary
@@ -111,9 +113,9 @@ packages/                       # Custom derivations
 flake.nix
   └── Snowfall auto-discovers everything
        ├── systems/<host>/default.nix     ← enables modules.* options
-       ├── home/sinh/<host>.nix           ← enables sinh-x.* options
+       ├── home/kbb/<host>.nix            ← enables kbb.* options
        ├── modules/nixos/*                ← define modules.* options
-       ├── modules/home/*                 ← define sinh-x.* options
+       ├── modules/home/*                 ← define kbb.* options
        ├── overlays/                      ← inject external packages
        └── lib/                           ← shared helpers
 ```
