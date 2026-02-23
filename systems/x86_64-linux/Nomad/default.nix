@@ -10,6 +10,7 @@
 {
   imports = [
     inputs.disko.nixosModules.disko
+    inputs.fcitx5-lotus.nixosModules.fcitx5-lotus
     ./disks.nix
     ./hardware-configuration.nix
   ];
@@ -24,6 +25,8 @@
     wifi.enable = false;
 
     sops.enable = true;
+
+    fcitx5.enable = true;
 
     # Impermanence - btrfs root rollback with persistent storage
     impermanence = {

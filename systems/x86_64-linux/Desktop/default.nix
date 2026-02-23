@@ -10,6 +10,7 @@
 {
   imports = [
     ./hardware-configuration.nix
+    inputs.fcitx5-lotus.nixosModules.fcitx5-lotus
   ];
 
   kbb.default-desktop.enable = true;
@@ -22,6 +23,8 @@
     wifi.enable = false;
 
     sops.enable = true;
+
+    fcitx5.enable = true;
   };
 
   # Timezone
