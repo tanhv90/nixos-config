@@ -90,7 +90,7 @@ cd ~/nixos-config && git add -A
 nix build .#nixosConfigurations.Nomad.config.system.build.toplevel
 
 # Mount partitions
-sudo cryptsetup open /dev/sda3 nomad-crypt
+sudo cryptsetup open /dev/sda4 nomad-crypt
 sudo vgchange -ay nomad-vg
 sudo mount -t btrfs -o subvol=@root,compress=zstd,noatime /dev/nomad-vg/nomad-lv /mnt
 sudo mount -t btrfs -o subvol=@nix,compress=zstd,noatime /dev/nomad-vg/nomad-lv /mnt/nix
@@ -158,8 +158,9 @@ Tailscale:
 ───────────────────────────────────────
 
 /dev/sda1  512MB  ESP (vfat, /boot/efi)
-/dev/sda2  16GB   swap
-/dev/sda3  rest   LUKS "nomad-crypt"
+/dev/sda2  128GB  NTFS data (/mnt/data, noauto) — accessible as normal USB on any OS
+/dev/sda3  16GB   swap
+/dev/sda4  rest   LUKS "nomad-crypt"
                   └─ LVM VG "nomad-vg"
                      └─ LV "nomad-lv" (btrfs, label: nomad)
                         ├─ @root        → /        (wiped every boot)
@@ -183,6 +184,7 @@ modules/nixos/
   impermanence/     # modules.impermanence — tmpfs root + persist
   sops/             # modules.sops — age-encrypted secrets
   users/kbb/        # User definition, fish shell, home-manager link
+  fcitx5/           # modules.fcitx5 — fcitx5 + Vietnamese Lotus engine
   fish/             # modules.fish — fish plugins
   wifi/             # modules.wifi — wpa_supplicant (disabled, using NetworkManager)
   niri/             # modules.niri — Wayland WM (available but not active)
@@ -229,6 +231,7 @@ Code:         VS Code
 Containers:   Docker + lazydocker
 VPN:          Tailscale
 Tunnel:       Cloudflared
+Input:        fcitx5 + Lotus (Vietnamese)
 DNS:          Stubby (DNS-over-TLS, Cloudflare)
 Secrets:      SOPS + age encryption
 EOF

@@ -6,8 +6,9 @@ Portable NixOS on an external SSD with LUKS encryption, ephemeral root (imperman
 
 ```
 /dev/sda1  512MB  ESP (vfat, /boot/efi)
-/dev/sda2  16GB   swap
-/dev/sda3  rest   LUKS "nomad-crypt"
+/dev/sda2  128GB  NTFS data (/mnt/data, noauto) — accessible as normal USB on any OS
+/dev/sda3  16GB   swap
+/dev/sda4  rest   LUKS "nomad-crypt"
                   └─ LVM VG "nomad-vg"
                      └─ LV "nomad-lv" (btrfs, label: nomad)
                         ├─ @root        → /        (wiped every boot)
@@ -114,7 +115,7 @@ cd ~/nixos-config && git add -A
 nix build .#nixosConfigurations.Nomad.config.system.build.toplevel
 
 # Mount partitions
-sudo cryptsetup open /dev/sda3 nomad-crypt
+sudo cryptsetup open /dev/sda4 nomad-crypt
 sudo vgchange -ay nomad-vg
 sudo mount -t btrfs -o subvol=@root,compress=zstd,noatime /dev/nomad-vg/nomad-lv /mnt
 sudo mount -t btrfs -o subvol=@nix,compress=zstd,noatime /dev/nomad-vg/nomad-lv /mnt/nix

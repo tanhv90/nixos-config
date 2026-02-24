@@ -102,7 +102,7 @@ Kernel + initrd load into RAM
   |
   v
 initrd prompts: "Enter passphrase for nomad-crypt: ________"
-  |  (LUKS decrypts /dev/sda3 -> /dev/mapper/nomad-crypt)
+  |  (LUKS decrypts /dev/sda4 -> /dev/mapper/nomad-crypt)
   |
   v
 LVM activates: /dev/mapper/nomad-crypt -> /dev/nomad-vg/nomad-lv

@@ -8,9 +8,10 @@ Carry an external SSD, plug it into **any** x86_64 PC, boot from it, and get a f
 
 ```
 /dev/sda  (external SSD)
-├── ESP (512MB, unencrypted)     <- bootloader must be readable
+├── ESP (512MB, unencrypted)        <- bootloader must be readable
+├── NTFS data (128GB, unencrypted)  <- accessible as normal USB on any OS
 ├── swap (16GB, unencrypted)
-└── LUKS partition "nomad-crypt" <- everything below is encrypted
+└── LUKS partition "nomad-crypt"    <- everything below is encrypted
     └── LVM VG "nomad-vg"
         └── LV "nomad-lv"
             └── btrfs (label: "nomad")
@@ -77,7 +78,7 @@ Kernel + initrd load
   |
   v
 initrd prompts: "Enter passphrase for nomad-crypt: ________"
-  |  (LUKS decrypts /dev/sda3 -> /dev/mapper/nomad-crypt)
+  |  (LUKS decrypts /dev/sda4 -> /dev/mapper/nomad-crypt)
   |
   v
 LVM activates: /dev/mapper/nomad-crypt -> /dev/nomad-vg/nomad-lv
@@ -114,7 +115,7 @@ A portable SSD can be lost or stolen. Without LUKS:
 
 With LUKS: without the passphrase, the partition is indistinguishable from random data.
 
-Note: The ESP is unencrypted (bootloader only, no secrets). The swap is also unencrypted — a potential leak vector if sensitive data gets swapped to disk (tradeoff for simplicity).
+Note: The ESP is unencrypted (bootloader only, no secrets). The NTFS data partition is unencrypted — it's designed to be a portable storage area accessible on any OS without decryption. The swap is also unencrypted — a potential leak vector if sensitive data gets swapped to disk (tradeoff for simplicity).
 
 ## Why LVM Between LUKS and btrfs
 

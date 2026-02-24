@@ -20,8 +20,21 @@
               ];
             };
           };
-          swap = {
+          data = {
             priority = 2;
+            size = "128G";
+            content = {
+              type = "filesystem";
+              format = "ntfs";
+              mountpoint = "/mnt/data";
+              mountOptions = [
+                "nofail"
+                "noauto"
+              ];
+            };
+          };
+          swap = {
+            priority = 3;
             size = "16G";
             content = {
               type = "swap";
@@ -29,7 +42,7 @@
             };
           };
           root = {
-            priority = 3;
+            priority = 4;
             size = "100%";
             content = {
               type = "luks";

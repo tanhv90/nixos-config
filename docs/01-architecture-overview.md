@@ -83,10 +83,12 @@ home/kbb/
 modules/
   ├── nixos/                    # System modules (modules.*)
   │   ├── default-desktop/
+  │   ├── fcitx5/
   │   ├── fish/
   │   ├── impermanence/
   │   ├── niri/
   │   ├── sops/
+  │   ├── fcitx5/
   │   ├── stubby/
   │   ├── users/kbb/
   │   └── wifi/
