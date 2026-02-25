@@ -30,40 +30,7 @@
     extraModulePackages = [ ];
   };
 
-  # TODO: Replace placeholder UUIDs after partitioning
-  # Run: nixos-generate-config --root /mnt --show-hardware-config
-  fileSystems."/" = {
-    device = "/dev/disk/by-label/nixos";
-    fsType = "btrfs";
-    options = [
-      "subvol=@"
-      "compress=zstd"
-      "noatime"
-    ];
-  };
-
-  fileSystems."/home" = {
-    device = "/dev/disk/by-label/nixos";
-    fsType = "btrfs";
-    options = [
-      "subvol=@home"
-      "compress=zstd"
-      "noatime"
-    ];
-  };
-
-  fileSystems."/boot" = {
-    device = "/dev/disk/by-label/BOOT";
-    fsType = "vfat";
-    options = [
-      "fmask=0077"
-      "dmask=0077"
-    ];
-  };
-
-  swapDevices = [
-    { device = "/dev/disk/by-label/swap"; }
-  ];
+  # Filesystems and swap are managed by disko (see disks.nix)
 
   networking.useDHCP = lib.mkDefault true;
 
