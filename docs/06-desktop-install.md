@@ -15,32 +15,20 @@ lsblk -o NAME,SIZE,MODEL,TRAN
 # Confirm /dev/nvme0n1 is the internal NVMe, NOT the Nomad SSD
 ```
 
-## Step 2: Partition (DESTROYS ALL DATA on /dev/nvme0n1)
+## Step 2: Partition with disko (DESTROYS ALL DATA on /dev/nvme0n1)
 
 ```bash
-sudo parted /dev/nvme0n1 -- mklabel gpt
-sudo parted /dev/nvme0n1 -- mkpart ESP fat32 1MiB 513MiB
-sudo parted /dev/nvme0n1 -- set 1 esp on
-sudo parted /dev/nvme0n1 -- mkpart swap linux-swap 513MiB 32.5GiB
-sudo parted /dev/nvme0n1 -- mkpart primary ext4 32.5GiB 100%
+sudo nix --extra-experimental-features "nix-command flakes" \
+  run github:nix-community/disko -- --mode disko \
+  ~/nixos-config/systems/x86_64-linux/Desktop/disks.nix
 ```
 
-## Step 3: Format
+This creates:
+- `/dev/nvme0n1p1` — 512MB ESP (vfat, `/boot`)
+- `/dev/nvme0n1p2` — 32GB swap
+- `/dev/nvme0n1p3` — rest as btrfs (label: nixos) with `@` → `/` and `@home` → `/home`
 
-```bash
-sudo mkfs.fat -F 32 -n BOOT /dev/nvme0n1p1
-sudo mkswap -L swap /dev/nvme0n1p2
-sudo mkfs.ext4 -L nixos /dev/nvme0n1p3
-```
-
-## Step 4: Mount
-
-```bash
-sudo mount /dev/nvme0n1p3 /mnt
-sudo mkdir -p /mnt/boot
-sudo mount /dev/nvme0n1p1 /mnt/boot
-sudo swapon /dev/nvme0n1p2
-```
+Disko automatically mounts everything to `/mnt`.
 
 ## Step 5: Setup sops age key
 
@@ -98,8 +86,10 @@ sudo tailscale up                 # First-time Tailscale auth
 Boot back into Nomad, mount the NVMe, and fix:
 
 ```bash
-sudo mount /dev/nvme0n1p3 /mnt
+sudo mount -o subvol=@,compress=zstd,noatime /dev/nvme0n1p3 /mnt
+sudo mkdir -p /mnt/boot /mnt/home
 sudo mount /dev/nvme0n1p1 /mnt/boot
+sudo mount -o subvol=@home,compress=zstd,noatime /dev/nvme0n1p3 /mnt/home
 # Edit files in /mnt/home/kbb/nixos-config/...
 sudo nixos-install --flake /mnt/home/kbb/nixos-config#Desktop --no-root-passwd
 ```

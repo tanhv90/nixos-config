@@ -9,8 +9,10 @@
 }:
 {
   imports = [
-    ./hardware-configuration.nix
+    inputs.disko.nixosModules.disko
     inputs.fcitx5-lotus.nixosModules.fcitx5-lotus
+    ./disks.nix
+    ./hardware-configuration.nix
   ];
 
   kbb.default-desktop.enable = true;

@@ -52,8 +52,8 @@ Each host picks what it needs by toggling options:
 |---|---|---|
 | **Role** | Portable SSD | Stationary desktop PC |
 | **GPU** | Generic (modesetting) | NVIDIA RTX 3060 (proprietary) |
-| **Encryption** | LUKS + impermanence | None (persistent ext4 root) |
-| **Root FS** | btrfs (wiped every boot) | ext4 (traditional persistent) |
+| **Encryption** | LUKS + impermanence | None (persistent root) |
+| **Root FS** | btrfs (wiped every boot) | btrfs (traditional persistent) |
 
 **System config** (`systems/x86_64-linux/<hostname>/default.nix`): hardware, boot, networking, which NixOS modules to enable.
 
@@ -74,7 +74,7 @@ These are available as `lib.kbb.enabled`, `lib.kbb.mkBoolOpt`, etc. throughout t
 systems/x86_64-linux/<hostname>/
   ├── default.nix              # System configuration
   ├── hardware-configuration.nix
-  └── disks.nix                # (Nomad only — disko partition layout)
+  └── disks.nix                # disko partition layout
 
 home/kbb/
   ├── global/                   # Shared home config

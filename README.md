@@ -2,7 +2,9 @@
 
 Portable NixOS on an external SSD with LUKS encryption, ephemeral root (impermanence), and declarative config via Snowfall Lib.
 
-## Disk Layout
+## Disk Layouts
+
+### Nomad (external SSD — /dev/sda)
 
 ```
 /dev/sda1  512MB  ESP (vfat, /boot/efi)
@@ -15,6 +17,16 @@ Portable NixOS on an external SSD with LUKS encryption, ephemeral root (imperman
                         ├─ @nix         → /nix     (persistent)
                         ├─ @persist     → /persist (persistent)
                         └─ @root-blank  (rollback snapshot)
+```
+
+### Desktop (internal NVMe — /dev/nvme0n1)
+
+```
+/dev/nvme0n1p1  512MB  ESP (vfat, /boot)
+/dev/nvme0n1p2  32GB   swap
+/dev/nvme0n1p3  rest   btrfs (label: nixos)
+                       ├─ @      → /      (persistent)
+                       └─ @home  → /home  (persistent)
 ```
 
 ## Fresh Install (from Arch Linux)
@@ -161,4 +173,5 @@ See [docs/](docs/) for architecture details:
 - [Impermanence](docs/03-impermanence.md)
 - [Portable USB reference](docs/04-firefly-portable-usb.md)
 - [Setting up your own](docs/05-setting-up-your-own.md)
+- [Desktop install](docs/06-desktop-install.md)
 - [Setup script](docs/setup.sh)

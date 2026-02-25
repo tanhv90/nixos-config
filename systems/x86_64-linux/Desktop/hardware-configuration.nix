@@ -4,7 +4,7 @@
 # Partition layout on /dev/nvme0n1:
 #   /dev/nvme0n1p1  512MB   ESP   -> /boot
 #   /dev/nvme0n1p2  32GB    swap
-#   /dev/nvme0n1p3  rest    ext4  -> /
+#   /dev/nvme0n1p3  rest    btrfs -> /  (subvols: @, @home)
 {
   config,
   lib,
@@ -34,7 +34,22 @@
   # Run: nixos-generate-config --root /mnt --show-hardware-config
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
-    fsType = "ext4";
+    fsType = "btrfs";
+    options = [
+      "subvol=@"
+      "compress=zstd"
+      "noatime"
+    ];
+  };
+
+  fileSystems."/home" = {
+    device = "/dev/disk/by-label/nixos";
+    fsType = "btrfs";
+    options = [
+      "subvol=@home"
+      "compress=zstd"
+      "noatime"
+    ];
   };
 
   fileSystems."/boot" = {
