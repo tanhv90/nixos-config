@@ -23,6 +23,7 @@
           data = {
             priority = 2;
             size = "128G";
+            type = "0700";
             content = {
               type = "filesystem";
               format = "ntfs";
