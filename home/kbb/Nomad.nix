@@ -29,5 +29,8 @@
     onlyoffice.enable = true;
     browsers.enable = true;
     ai-tools.enable = true;
+    mpv.enable = true;
+    strawberry.enable = true;
+    video-trimmer.enable = true;
   };
 }
