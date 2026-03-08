@@ -25,6 +25,7 @@
     zellij.enable = true;
     neovim.enable = true;
     onlyoffice.enable = true;
+    browsers.enable = true;
     ai-tools.enable = true;
   };
 }

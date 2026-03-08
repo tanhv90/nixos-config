@@ -5,8 +5,7 @@
 
   home = {
     packages = with pkgs; [
-      light
-      acpilight
+      brightnessctl
       sct
       sound-theme-freedesktop
       telegram-desktop
@@ -28,6 +27,7 @@
     zellij.enable = true;
     neovim.enable = true;
     onlyoffice.enable = true;
+    browsers.enable = true;
     ai-tools.enable = true;
   };
 }

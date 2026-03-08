@@ -49,11 +49,14 @@
     jack.enable = true;
   };
 
-  # Docker
+  # Docker with NVIDIA GPU support
   virtualisation.docker = {
     enable = true;
     enableOnBoot = true;
+    daemon.settings.features.cdi = true;
   };
+
+  hardware.nvidia-container-toolkit.enable = true;
 
   # Tailscale
   services.tailscale.enable = true;
